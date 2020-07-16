@@ -7,6 +7,7 @@ BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 LIGHT = (204, 255, 230)
 DARK = (51, 153, 51)
+MOVE = (50, 50, 50)
 
 square_size = 60
 display_height = square_size * 8
@@ -86,6 +87,7 @@ class Set:
 class Piece:
     def __init__(self, color, piece_type, piece_name, is_player):
         self.is_player = is_player
+        self.is_moved = False
         self.color = color
         self.piece_type = piece_type
         self.piece_name = piece_name
@@ -98,6 +100,30 @@ class Piece:
             return first_person_locations[piece_name]
         else:
             return second_person_locations[piece_name]
+
+    def possible_moves(self, first_location):
+        moves = []
+        if self.piece_type == "pawn":
+            if not self.is_moved:
+                moves.append((first_location[0], first_location[1] - square_size * 2))
+
+            moves.append((first_location[0], first_location[1] - square_size))
+
+        for move in moves:
+            for name, piece in all_pieces.items():
+                if move == piece.location:
+                    moves.remove(move)
+        return moves
+
+    def indicate_moves(self, possible_moves):
+        for move in possible_moves:
+            square = pygame.Rect(
+                move[0] + square_size // 4,
+                move[1] + square_size // 4,
+                square_size // 2,
+                square_size // 2,
+            )
+            pygame.draw.rect(display, MOVE, square)
 
 
 def draw_grid():
@@ -123,7 +149,6 @@ def check_collisions(mouse_pos, pieces):
     for name, piece in white_pieces.pieces.items():
         if piece.location[0] < mouse_pos[0] < piece.location[0] + square_size:
             if piece.location[1] < mouse_pos[1] < piece.location[1] + square_size:
-                print("colliiddddddde")
                 return piece
     return None
 
@@ -143,6 +168,10 @@ board = draw_grid()
 white_pieces = Set("white", True)
 black_pieces = Set("black", False)
 
+all_pieces = {}
+all_pieces.update(white_pieces.pieces)
+all_pieces.update(black_pieces.pieces)
+print(all_pieces)
 player_pieces = white_pieces
 
 is_picked_piece = False
@@ -158,12 +187,22 @@ while True:
                 mouse_position = pygame.mouse.get_pos()
                 picked_piece = check_collisions(mouse_position, player_pieces)
                 if picked_piece is not None:
+                    pick_location = picked_piece.location
+                    possible_moves = picked_piece.possible_moves(pick_location)
+                    picked_piece.indicate_moves(possible_moves)
                     is_picked_piece = True
             # Release piece
             else:
                 snap_piece(picked_piece)
+                if picked_piece.location in possible_moves:
+                    if pick_location != picked_piece.location:
+                        picked_piece.is_moved = True
+                else:
+                    picked_piece.location = pick_location
                 picked_piece = None
                 is_picked_piece = False
+
+    display.blit(board, (0, 0))
 
     if is_picked_piece and picked_piece is not None:
         mouse_pos = pygame.mouse.get_pos()
@@ -171,8 +210,7 @@ while True:
             mouse_pos[0] - square_size // 2,
             mouse_pos[1] - square_size // 2,
         )
-
-    display.blit(board, (0, 0))
+        picked_piece.indicate_moves(possible_moves)
 
     for name, piece in white_pieces.pieces.items():
         display.blit(piece.image, piece.location)
