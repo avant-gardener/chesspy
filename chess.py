@@ -10,6 +10,7 @@ DARK = (51, 153, 51)
 MOVE = (50, 50, 50)
 
 square_size = 60
+board_size = square_size * 8
 display_height = square_size * 8
 display_width = square_size * 8
 
@@ -103,27 +104,145 @@ class Piece:
 
     def possible_moves(self, first_location):
         moves = []
-        if self.piece_type == "pawn":
-            if not self.is_moved:
-                moves.append((first_location[0], first_location[1] - square_size * 2))
+        capture_moves = []
 
-            moves.append((first_location[0], first_location[1] - square_size))
+        # # Movement
 
+        # Moves for white
+        if self.color == "white":
+            if self.piece_type == "pawn":
+                if not self.is_moved:
+                    moves.append(
+                        (first_location[0], first_location[1] - square_size * 2)
+                    )
+
+                moves.append((first_location[0], first_location[1] - square_size))
+        # Moves for black
+        else:
+            if self.piece_type == "pawn":
+                if not self.is_moved:
+                    moves.append(
+                        (first_location[0], first_location[1] + square_size * 2)
+                    )
+
+                moves.append((first_location[0], first_location[1] + square_size))
+
+        # TODO Refactor this mess
+        if self.piece_type == "bishop":
+            temp_location = first_location
+            capture = False
+            while self.is_move_in_bounds(temp_location) and (not capture):
+                temp_location = (
+                    temp_location[0] - square_size,
+                    temp_location[1] - square_size,
+                )
+                if self.is_obstructed(temp_location):
+                    break
+                if not self.is_capture(temp_location):
+                    moves.append(temp_location)
+                else:
+                    capture_moves.append(temp_location)
+                    capture = True
+            temp_location = first_location
+            capture = False
+            while self.is_move_in_bounds(temp_location) and (not capture):
+                temp_location = (
+                    temp_location[0] + square_size,
+                    temp_location[1] + square_size,
+                )
+                if self.is_obstructed(temp_location):
+                    break
+                if not self.is_capture(temp_location):
+                    moves.append(temp_location)
+                else:
+                    capture_moves.append(temp_location)
+                    capture = True
+            temp_location = first_location
+            capture = False
+            while self.is_move_in_bounds(temp_location) and (not capture):
+                temp_location = (
+                    temp_location[0] + square_size,
+                    temp_location[1] - square_size,
+                )
+                if self.is_obstructed(temp_location):
+                    break
+                if not self.is_capture(temp_location):
+                    moves.append(temp_location)
+                else:
+                    capture_moves.append(temp_location)
+                    capture = True
+            temp_location = first_location
+            capture = False
+            while self.is_move_in_bounds(temp_location) and (not capture):
+                temp_location = (
+                    temp_location[0] - square_size,
+                    temp_location[1] + square_size,
+                )
+                if self.is_obstructed(temp_location):
+                    break
+                if not self.is_capture(temp_location):
+                    moves.append(temp_location)
+                else:
+                    capture_moves.append(temp_location)
+                    capture = True
+
+        # Eliminate illegal moves
+        final_moves = []
         for move in moves:
-            for name, piece in all_pieces.items():
+            illegal = False
+            for name, piece in white_pieces.pieces.items():
                 if move == piece.location:
-                    moves.remove(move)
-        return moves
+                    illegal = True
+            if illegal:
+                continue
+            for name, piece in black_pieces.pieces.items():
+                if move == piece.location:
+                    illegal = True
+            if illegal:
+                continue
+            if not self.is_move_in_bounds(move):
+                illegal = True
+            if illegal:
+                continue
+            final_moves.append(move)
+        return final_moves
 
-    def indicate_moves(self, possible_moves):
-        for move in possible_moves:
+    def indicate_moves(self, psb_moves):
+        for possible_move in psb_moves:
             square = pygame.Rect(
-                move[0] + square_size // 4,
-                move[1] + square_size // 4,
+                possible_move[0] + square_size // 4,
+                possible_move[1] + square_size // 4,
                 square_size // 2,
                 square_size // 2,
             )
             pygame.draw.rect(display, MOVE, square)
+
+    def is_capture(self, mv):
+        if self.color == "black":
+            for name, piece in white_pieces.pieces.items():
+                if mv == piece.location:
+                    return True
+        else:
+            for name, piece in black_pieces.pieces.items():
+                if mv == piece.location:
+                    return True
+        return False
+
+    def is_obstructed(self, mv):
+        if self.color == "white":
+            for name, piece in white_pieces.pieces.items():
+                if mv == piece.location:
+                    return True
+        else:
+            for name, piece in black_pieces.pieces.items():
+                if mv == piece.location:
+                    return True
+        return False
+
+    def is_move_in_bounds(self, mv):
+        if mv[0] < 0 or mv[0] >= board_size or mv[1] < 0 or mv[1] >= board_size:
+            return False
+        return True
 
 
 def draw_grid():
@@ -146,7 +265,7 @@ def draw_grid():
 
 
 def check_collisions(mouse_pos, pieces):
-    for name, piece in white_pieces.pieces.items():
+    for name, piece in pieces.pieces.items():
         if piece.location[0] < mouse_pos[0] < piece.location[0] + square_size:
             if piece.location[1] < mouse_pos[1] < piece.location[1] + square_size:
                 return piece
@@ -168,16 +287,24 @@ board = draw_grid()
 white_pieces = Set("white", True)
 black_pieces = Set("black", False)
 
-all_pieces = {}
-all_pieces.update(white_pieces.pieces)
-all_pieces.update(black_pieces.pieces)
-print(all_pieces)
-player_pieces = white_pieces
+current_player = white_pieces
+
+
+def change_player(player):
+    if player is white_pieces:
+        player = black_pieces
+    else:
+        player = white_pieces
+    return player
+
 
 is_picked_piece = False
 picked_piece = None
+checkmate = False
 
-while True:
+# Main game loop
+while not checkmate:
+
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             pygame.quit()
@@ -185,24 +312,29 @@ while True:
             # If the player isn't already holding a piece, pick up the piece
             if not is_picked_piece:
                 mouse_position = pygame.mouse.get_pos()
-                picked_piece = check_collisions(mouse_position, player_pieces)
+                picked_piece = check_collisions(mouse_position, current_player)
                 if picked_piece is not None:
                     pick_location = picked_piece.location
-                    possible_moves = picked_piece.possible_moves(pick_location)
-                    picked_piece.indicate_moves(possible_moves)
+                    possible_moves_to_play = picked_piece.possible_moves(pick_location)
+                    picked_piece.indicate_moves(possible_moves_to_play)
                     is_picked_piece = True
             # Release piece
             else:
                 snap_piece(picked_piece)
-                if picked_piece.location in possible_moves:
+                if picked_piece.location in possible_moves_to_play:
                     if pick_location != picked_piece.location:
                         picked_piece.is_moved = True
+                    current_player = change_player(current_player)
                 else:
                     picked_piece.location = pick_location
                 picked_piece = None
                 is_picked_piece = False
 
+    # Draw board
+
     display.blit(board, (0, 0))
+
+    # Get picked piece's location and draw possible moves
 
     if is_picked_piece and picked_piece is not None:
         mouse_pos = pygame.mouse.get_pos()
@@ -210,7 +342,9 @@ while True:
             mouse_pos[0] - square_size // 2,
             mouse_pos[1] - square_size // 2,
         )
-        picked_piece.indicate_moves(possible_moves)
+        picked_piece.indicate_moves(possible_moves_to_play)
+
+    # Draw pieces
 
     for name, piece in white_pieces.pieces.items():
         display.blit(piece.image, piece.location)
