@@ -21,6 +21,16 @@ LEFT = False
 RIGHT = True
 diagonals = [[RIGHT, UP], [RIGHT, DOWN], [LEFT, UP], [LEFT, DOWN]]
 lines = [[RIGHT, None], [LEFT, None], [None, UP], [None, DOWN]]
+knight_moves = [
+    [[None, UP], [None, UP], [LEFT, None]],
+    [[None, UP], [None, UP], [RIGHT, None]],
+    [[None, DOWN], [None, DOWN], [RIGHT, None]],
+    [[None, DOWN], [None, DOWN], [LEFT, None]],
+    [[LEFT, None], [LEFT, None], [None, UP]],
+    [[LEFT, None], [LEFT, None], [None, DOWN]],
+    [[RIGHT, None], [RIGHT, None], [None, UP]],
+    [[RIGHT, None], [RIGHT, None], [None, DOWN]],
+]
 
 
 first_person_locations = {
@@ -120,12 +130,12 @@ class Piece:
         # Moves for white pawn
         if self.color == "white":
             if self.piece_type == "pawn":
-                if not self.is_moved:
+                first_pawn_move = (first_location[0], first_location[1] - square_size)
+                moves.append(first_pawn_move)
+                if not self.is_moved and not self.is_obstructed(first_pawn_move):
                     moves.append(
                         (first_location[0], first_location[1] - square_size * 2)
                     )
-
-                moves.append((first_location[0], first_location[1] - square_size))
 
                 tmp_location = self.calculate_move(first_location, RIGHT, UP)
                 if self.is_capture(tmp_location):
@@ -138,12 +148,12 @@ class Piece:
         # Moves for black pawn
         else:
             if self.piece_type == "pawn":
-                if not self.is_moved:
+                first_pawn_move = (first_location[0], first_location[1] + square_size)
+                moves.append(first_pawn_move)
+                if not self.is_moved and not self.is_obstructed(first_pawn_move):
                     moves.append(
                         (first_location[0], first_location[1] + square_size * 2)
                     )
-
-                moves.append((first_location[0], first_location[1] + square_size))
 
                 tmp_location = self.calculate_move(first_location, RIGHT, DOWN)
                 if self.is_capture(tmp_location):
@@ -153,26 +163,51 @@ class Piece:
                 if self.is_capture(tmp_location):
                     capture_moves.append(tmp_location)
 
-        # Moves for rooks
-        if self.piece_type == "rook":
-            moves, capture_moves = self.calculate_all_lines(
+        # Moves for knights
+        if self.piece_type == "knight":
+            for knight_move in knight_moves:
+                location = first_location
+                for step in knight_move:
+                    location = self.calculate_move(location, step[0], step[1])
+                moves, capture_moves, continue_pass = self.capture_move_or_break(
+                    location, moves, capture_moves
+                )
+
+        # Moves for bishops
+        elif self.piece_type == "bishop":
+            moves, capture_moves = self.calculate_all_diagonals(
                 first_location, moves, capture_moves
             )
 
-        # Moves for bishops
-        if self.piece_type == "bishop":
-            moves, capture_moves = self.calculate_all_diagonals(
+        # Moves for rooks
+        elif self.piece_type == "rook":
+            moves, capture_moves = self.calculate_all_lines(
                 first_location, moves, capture_moves
             )
 
         # Moves for queen
-        if self.piece_type == "queen":
+        elif self.piece_type == "queen":
             moves, capture_moves = self.calculate_all_diagonals(
                 first_location, moves, capture_moves
             )
             moves, capture_moves = self.calculate_all_lines(
                 first_location, moves, capture_moves
             )
+
+        # Moves for king
+        elif self.piece_type == "king":
+            for diagonal in diagonals:
+                temp_location = self.calculate_move(
+                    first_location, diagonal[0], diagonal[1]
+                )
+                moves, capture_moves, continue_pass = self.capture_move_or_break(
+                    temp_location, moves, capture_moves
+                )
+            for line in lines:
+                temp_location = self.calculate_move(first_location, line[0], line[1])
+                moves, capture_moves, continue_pass = self.capture_move_or_break(
+                    temp_location, moves, capture_moves
+                )
 
         # Eliminate illegal moves
         final_moves = []
@@ -274,7 +309,7 @@ class Piece:
         continue_pass = True
         while continue_pass:
             temp_location = self.calculate_move(temp_location, dir1, dir2)
-            moves, capture_moves, continue_pass = self.capture_move_or_break(
+            mvs, capture_mvs, continue_pass = self.capture_move_or_break(
                 temp_location, mvs, capture_mvs
             )
         return mvs, capture_mvs
