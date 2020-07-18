@@ -15,6 +15,14 @@ board_size = square_size * 8
 display_height = square_size * 8
 display_width = square_size * 8
 
+UP = False
+DOWN = True
+LEFT = False
+RIGHT = True
+diagonals = [[RIGHT, UP], [RIGHT, DOWN], [LEFT, UP], [LEFT, DOWN]]
+lines = [[RIGHT, None], [LEFT, None], [None, UP], [None, DOWN]]
+
+
 first_person_locations = {
     "pawn0": (square_size * 0, square_size * 6),
     "pawn1": (square_size * 1, square_size * 6),
@@ -119,17 +127,11 @@ class Piece:
 
                 moves.append((first_location[0], first_location[1] - square_size))
 
-                tmp_location = (
-                    first_location[0] + square_size,
-                    first_location[1] - square_size,
-                )
+                tmp_location = self.calculate_move(first_location, RIGHT, UP)
                 if self.is_capture(tmp_location):
                     capture_moves.append(tmp_location)
 
-                tmp_location = (
-                    first_location[0] - square_size,
-                    first_location[1] - square_size,
-                )
+                tmp_location = self.calculate_move(first_location, LEFT, UP)
                 if self.is_capture(tmp_location):
                     capture_moves.append(tmp_location)
 
@@ -143,159 +145,41 @@ class Piece:
 
                 moves.append((first_location[0], first_location[1] + square_size))
 
-                tmp_location = (
-                    first_location[0] + square_size,
-                    first_location[1] + square_size,
-                )
+                tmp_location = self.calculate_move(first_location, RIGHT, DOWN)
                 if self.is_capture(tmp_location):
                     capture_moves.append(tmp_location)
 
-                tmp_location = (
-                    first_location[0] - square_size,
-                    first_location[1] + square_size,
-                )
+                tmp_location = self.calculate_move(first_location, LEFT, DOWN)
                 if self.is_capture(tmp_location):
                     capture_moves.append(tmp_location)
 
         # Moves for rooks
-        # TODO Refactor this mess
         if self.piece_type == "rook":
-            temp_location = first_location
-            capture = False
-            while self.is_move_in_bounds(temp_location) and (not capture):
-                temp_location = (
-                    temp_location[0],
-                    temp_location[1] - square_size,
-                )
-                if self.is_obstructed(temp_location):
-                    break
-                if not self.is_capture(temp_location):
-                    moves.append(temp_location)
-                else:
-                    capture_moves.append(temp_location)
-                    capture = True
-            temp_location = first_location
-            capture = False
-            while self.is_move_in_bounds(temp_location) and (not capture):
-                temp_location = (
-                    temp_location[0],
-                    temp_location[1] + square_size,
-                )
-                if self.is_obstructed(temp_location):
-                    break
-                if not self.is_capture(temp_location):
-                    moves.append(temp_location)
-                else:
-                    capture_moves.append(temp_location)
-                    capture = True
-            temp_location = first_location
-            capture = False
-            while self.is_move_in_bounds(temp_location) and (not capture):
-                temp_location = (
-                    temp_location[0] + square_size,
-                    temp_location[1],
-                )
-                if self.is_obstructed(temp_location):
-                    break
-                if not self.is_capture(temp_location):
-                    moves.append(temp_location)
-                else:
-                    capture_moves.append(temp_location)
-                    capture = True
-            temp_location = first_location
-            capture = False
-            while self.is_move_in_bounds(temp_location) and (not capture):
-                temp_location = (
-                    temp_location[0] - square_size,
-                    temp_location[1],
-                )
-                if self.is_obstructed(temp_location):
-                    break
-                if not self.is_capture(temp_location):
-                    moves.append(temp_location)
-                else:
-                    capture_moves.append(temp_location)
-                    capture = True
+            moves, capture_moves = self.calculate_all_lines(
+                first_location, moves, capture_moves
+            )
 
         # Moves for bishops
-        # TODO Refactor this mess
         if self.piece_type == "bishop":
-            temp_location = first_location
-            capture = False
-            while self.is_move_in_bounds(temp_location) and (not capture):
-                temp_location = (
-                    temp_location[0] - square_size,
-                    temp_location[1] - square_size,
-                )
-                if self.is_obstructed(temp_location):
-                    break
-                if not self.is_capture(temp_location):
-                    moves.append(temp_location)
-                else:
-                    capture_moves.append(temp_location)
-                    capture = True
-            temp_location = first_location
-            capture = False
-            while self.is_move_in_bounds(temp_location) and (not capture):
-                temp_location = (
-                    temp_location[0] + square_size,
-                    temp_location[1] + square_size,
-                )
-                if self.is_obstructed(temp_location):
-                    break
-                if not self.is_capture(temp_location):
-                    moves.append(temp_location)
-                else:
-                    capture_moves.append(temp_location)
-                    capture = True
-            temp_location = first_location
-            capture = False
-            while self.is_move_in_bounds(temp_location) and (not capture):
-                temp_location = (
-                    temp_location[0] + square_size,
-                    temp_location[1] - square_size,
-                )
-                if self.is_obstructed(temp_location):
-                    break
-                if not self.is_capture(temp_location):
-                    moves.append(temp_location)
-                else:
-                    capture_moves.append(temp_location)
-                    capture = True
-            temp_location = first_location
-            capture = False
-            while self.is_move_in_bounds(temp_location) and (not capture):
-                temp_location = (
-                    temp_location[0] - square_size,
-                    temp_location[1] + square_size,
-                )
-                if self.is_obstructed(temp_location):
-                    break
-                if not self.is_capture(temp_location):
-                    moves.append(temp_location)
-                else:
-                    capture_moves.append(temp_location)
-                    capture = True
+            moves, capture_moves = self.calculate_all_diagonals(
+                first_location, moves, capture_moves
+            )
+
+        # Moves for queen
+        if self.piece_type == "queen":
+            moves, capture_moves = self.calculate_all_diagonals(
+                first_location, moves, capture_moves
+            )
+            moves, capture_moves = self.calculate_all_lines(
+                first_location, moves, capture_moves
+            )
 
         # Eliminate illegal moves
         final_moves = []
         for move in moves:
-            illegal = False
-            for name, piece in white_pieces.pieces.items():
-                if move == piece.location:
-                    illegal = True
-            if illegal:
-                continue
-            for name, piece in black_pieces.pieces.items():
-                if move == piece.location:
-                    illegal = True
-            if illegal:
-                continue
-            if not self.is_move_in_bounds(move):
-                illegal = True
-            if illegal:
-                continue
-            final_moves.append(move)
+            if not self.is_obstructed(move) and self.is_move_in_bounds(move):
+                final_moves.append(move)
+
         return final_moves, capture_moves
 
     def indicate_moves(self, psb_moves):
@@ -327,20 +211,73 @@ class Piece:
         return False
 
     def is_obstructed(self, mv):
-        if self.color == "white":
-            for name, piece in white_pieces.pieces.items():
-                if mv == piece.location:
-                    return True
-        else:
-            for name, piece in black_pieces.pieces.items():
-                if mv == piece.location:
-                    return True
+        for name, piece in white_pieces.pieces.items():
+            if mv == piece.location:
+                return True
+        for name, piece in black_pieces.pieces.items():
+            if mv == piece.location:
+                return True
         return False
 
     def is_move_in_bounds(self, mv):
         if mv[0] < 0 or mv[0] >= board_size or mv[1] < 0 or mv[1] >= board_size:
             return False
         return True
+
+    def capture_move_or_break(self, mv, regular_mvs, capture_mvs):
+        will_continue = True
+        if not self.is_move_in_bounds(mv):
+            will_continue = False
+        elif self.is_capture(mv):
+            capture_mvs.append(mv)
+            will_continue = False
+        elif not self.is_obstructed(mv):
+            regular_mvs.append(mv)
+        else:
+            will_continue = False
+
+        return regular_mvs, capture_mvs, will_continue
+
+    def calculate_move(self, mv, first, second):
+        if first is None:
+            x = mv[0]
+        elif first:
+            x = mv[0] + square_size
+        else:
+            x = mv[0] - square_size
+
+        if second is None:
+            y = mv[1]
+        elif second:
+            y = mv[1] + square_size
+        else:
+            y = mv[1] - square_size
+
+        return (x, y)
+
+    def calculate_all_diagonals(self, start, mvs, captures):
+        for diagonal in diagonals:
+            mvs, captures = self.calc_moves_in_direction(
+                start, diagonal[0], diagonal[1], mvs, captures
+            )
+        return mvs, captures
+
+    def calculate_all_lines(self, start, mvs, captures):
+        for line in lines:
+            mvs, captures = self.calc_moves_in_direction(
+                start, line[0], line[1], mvs, captures
+            )
+        return mvs, captures
+
+    def calc_moves_in_direction(self, start, dir1, dir2, mvs, capture_mvs):
+        temp_location = start
+        continue_pass = True
+        while continue_pass:
+            temp_location = self.calculate_move(temp_location, dir1, dir2)
+            moves, capture_moves, continue_pass = self.capture_move_or_break(
+                temp_location, mvs, capture_mvs
+            )
+        return mvs, capture_mvs
 
 
 def draw_grid():
