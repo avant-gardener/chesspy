@@ -1,5 +1,6 @@
 """ Chess implementation in python """
 import pygame
+import copy
 
 pygame.init()
 
@@ -31,7 +32,6 @@ knight_moves = [
     [[RIGHT, None], [RIGHT, None], [None, UP]],
     [[RIGHT, None], [RIGHT, None], [None, DOWN]],
 ]
-
 
 first_person_locations = {
     "pawn0": (square_size * 0, square_size * 6),
@@ -254,6 +254,19 @@ class Piece:
                 return True
         return False
 
+    def will_there_be_check(self, mv):
+        if self.color == "white":
+            copy_pieces = copy_set(white_pieces)
+            copy_pieces.pieces[self.piece_name].location = mv
+            if is_there_a_check(copy_pieces, black_pieces):
+                return True
+        else:
+            copy_pieces = copy_set(black_pieces)
+            copy_pieces.pieces[self.piece_name].location = mv
+            if is_there_a_check(copy_pieces, white_pieces):
+                return True
+        return False
+
     def is_move_in_bounds(self, mv):
         if mv[0] < 0 or mv[0] >= board_size or mv[1] < 0 or mv[1] >= board_size:
             return False
@@ -368,19 +381,44 @@ def capture_at_location(capturing_piece, location):
                 break
 
 
+def is_there_a_check(pieces, threatening_set):
+    for name, attacking_piece in threatening_set.pieces.items():
+        mvs, capture_mvs = attacking_piece.possible_moves(attacking_piece.location)
+        if is_threatening_check(attacking_piece, capture_mvs, pieces):
+            return True
+    return False
+
+
+def is_threatening_check(piece, capture_moves_of_piece, threatened_set):
+    for capture_move in capture_moves_of_piece:
+        if capture_move == threatened_set.pieces["king"].location:
+            return True
+    return False
+
+
+def copy_set(piece_set):
+    set_copy = Set(piece_set.color, piece_set.is_player)
+    for name, piece in piece_set.pieces.items():
+        set_copy.pieces[name].location = piece.location
+    return set_copy
+
+
 board = draw_grid()
 white_pieces = Set("white", True)
 black_pieces = Set("black", False)
 
 current_player = white_pieces
+other_player = black_pieces
 
 
-def change_player(player):
+def change_player(player, second_player):
     if player is white_pieces:
         player = black_pieces
+        second_player = white_pieces
     else:
         player = white_pieces
-    return player
+        second_player = black_pieces
+    return player, second_player
 
 
 is_picked_piece = False
@@ -408,14 +446,20 @@ while not checkmate:
             # Release piece
             else:
                 snap_piece(picked_piece)
-                if picked_piece.location in captures:
+                if is_there_a_check(current_player, other_player):
+                    picked_piece.location = pick_location
+                elif picked_piece.location in captures:
                     capture_at_location(picked_piece, picked_piece.location)
                     picked_piece.is_moved = True
-                    current_player = change_player(current_player)
+                    current_player, other_player = change_player(
+                        current_player, other_player
+                    )
                 elif picked_piece.location in possible_moves_to_play:
                     if pick_location != picked_piece.location:
                         picked_piece.is_moved = True
-                    current_player = change_player(current_player)
+                    current_player, other_player = change_player(
+                        current_player, other_player
+                    )
                 else:
                     picked_piece.location = pick_location
                 picked_piece = None
