@@ -1,6 +1,5 @@
 """ Chess implementation in python """
 import pygame
-import copy
 
 pygame.init()
 
@@ -234,6 +233,10 @@ class Piece:
             )
             pygame.draw.rect(display, CAPTURE, square)
 
+    def indicate_check(self, king_pos):
+        square = pygame.Rect(king_pos[0], king_pos[1], square_size, square_size,)
+        pygame.draw.rect(display, CAPTURE, square)
+
     def is_capture(self, mv):
         if self.color == "black":
             for name, piece in white_pieces.pieces.items():
@@ -246,12 +249,10 @@ class Piece:
         return False
 
     def is_obstructed(self, mv):
-        for name, piece in white_pieces.pieces.items():
-            if mv == piece.location:
-                return True
-        for name, piece in black_pieces.pieces.items():
-            if mv == piece.location:
-                return True
+        for set_of_pieces in all_pieces:
+            for name, piece in set_of_pieces.pieces.items():
+                if mv == piece.location:
+                    return True
         return False
 
     def will_there_be_check(self, mv):
@@ -330,19 +331,19 @@ class Piece:
 
 def draw_grid():
 
-    for j in range(0, display_width, square_size * 2):
-        for k in range(square_size, display_height, square_size * 2):
+    for j in range(0, board_size, square_size * 2):
+        for k in range(square_size, board_size, square_size * 2):
             square = pygame.Rect(j, k, square_size, square_size)
             pygame.draw.rect(display, DARK, square)
 
-    for j in range(square_size, display_width, square_size * 2):
-        for k in range(0, display_height, square_size * 2):
+    for j in range(square_size, board_size, square_size * 2):
+        for k in range(0, board_size, square_size * 2):
             square = pygame.Rect(j, k, square_size, square_size)
             pygame.draw.rect(display, DARK, square)
 
-    for i in range(0, display_width, square_size):
-        pygame.draw.line(display, BLACK, (i, 0), (i, display_height), 1)
-        pygame.draw.line(display, BLACK, (0, i), (display_width, i), 1)
+    for i in range(0, board_size, square_size):
+        pygame.draw.line(display, BLACK, (i, 0), (i, board_size), 1)
+        pygame.draw.line(display, BLACK, (0, i), (board_size, i), 1)
 
     return display.copy()
 
@@ -381,10 +382,10 @@ def capture_at_location(capturing_piece, location):
                 break
 
 
-def is_there_a_check(pieces, threatening_set):
+def is_there_a_check(threatened_set, threatening_set):
     for name, attacking_piece in threatening_set.pieces.items():
         mvs, capture_mvs = attacking_piece.possible_moves(attacking_piece.location)
-        if is_threatening_check(attacking_piece, capture_mvs, pieces):
+        if is_threatening_check(attacking_piece, capture_mvs, threatened_set):
             return True
     return False
 
@@ -406,6 +407,7 @@ def copy_set(piece_set):
 board = draw_grid()
 white_pieces = Set("white", True)
 black_pieces = Set("black", False)
+all_pieces = [white_pieces, black_pieces]
 
 current_player = white_pieces
 other_player = black_pieces
@@ -462,6 +464,7 @@ while not checkmate:
                     )
                 else:
                     picked_piece.location = pick_location
+                king_location = current_player.pieces["king"].location
                 picked_piece = None
                 is_picked_piece = False
 
@@ -480,13 +483,15 @@ while not checkmate:
         picked_piece.indicate_moves(possible_moves_to_play)
         picked_piece.indicate_captures(captures)
 
+    # Indicate if there is a check
+    if is_there_a_check(current_player, other_player):
+        current_player.pieces["king"].indicate_check(king_location)
+
     # Draw pieces
 
-    for name, piece in white_pieces.pieces.items():
-        display.blit(piece.image, piece.location)
-
-    for name, piece in black_pieces.pieces.items():
-        display.blit(piece.image, piece.location)
+    for piece_set in all_pieces:
+        for name, piece in piece_set.pieces.items():
+            display.blit(piece.image, piece.location)
 
     if picked_piece is not None:
         display.blit(picked_piece.image, picked_piece.location)
