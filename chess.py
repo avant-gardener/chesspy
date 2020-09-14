@@ -117,6 +117,8 @@ class Piece:
         self.is_player = is_player
         self.is_moved = False
         self.color = color
+        self.set = None
+        self.opponent_set = None
         self.piece_type = piece_type
         self.piece_name = piece_name
         self.image_name = "./assets/" + self.color + "/" + self.piece_type
@@ -383,12 +385,22 @@ def snap_piece(piece):
     piece.location = snapped_location
 
 
-def capture_at_location(capturing_piece, location):
-    copy_of_pieces = capturing_piece.opponent_set.pieces.copy()
+def can_capture(capturing_piece, captured_set, location):
+    copy_capturing = copy_set(capturing_piece.set)
+    copy_captured = copy_set(capturing_piece.opponent_set)
+    capture_at_location(capturing_piece, copy_captured, location)
+    if is_there_a_check(copy_capturing, copy_captured):
+        return False
+    else:
+        return True
+
+
+def capture_at_location(capturing_piece, captured_set, location):
+    copy_of_pieces = captured_set.pieces.copy()
     for name, piece in copy_of_pieces.items():
         if piece.location == location:
             piece_to_capture = name
-            capturing_piece.opponent_set.pieces.pop(piece_to_capture)
+            captured_set.pieces.pop(piece_to_capture)
 
 
 def is_there_a_check(threatened_set, threatening_set):
@@ -495,14 +507,18 @@ while not checkmate:
             # Release piece
             else:
                 snap_piece(picked_piece)
-                if is_there_a_check(current_player, other_player):
+
+                if picked_piece.location in captures:
+                    if can_capture(picked_piece, picked_piece.opponent_set, picked_piece.location):
+                        capture_at_location(
+                            picked_piece, picked_piece.opponent_set, picked_piece.location)
+                        picked_piece.is_moved = True
+                        current_player, other_player = change_player(
+                            current_player, other_player)
+                    else:
+                        picked_piece.location = pick_location
+                elif is_there_a_check(current_player, other_player):
                     picked_piece.location = pick_location
-                elif picked_piece.location in captures:
-                    capture_at_location(picked_piece, picked_piece.location)
-                    picked_piece.is_moved = True
-                    current_player, other_player = change_player(
-                        current_player, other_player
-                    )
                 elif picked_piece.location in possible_moves_to_play:
                     if pick_location != picked_piece.location:
                         picked_piece.is_moved = True
@@ -511,6 +527,7 @@ while not checkmate:
                     )
                 else:
                     picked_piece.location = pick_location
+
                 king_location = current_player.pieces["king"].location
                 picked_piece = None
                 is_picked_piece = False
