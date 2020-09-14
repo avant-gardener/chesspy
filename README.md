@@ -1,3 +1,3 @@
 # chesspy
 
-Chess written with pygame
+Chess written with pygame (WIP)
