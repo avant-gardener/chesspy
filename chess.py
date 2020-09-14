@@ -5,8 +5,8 @@ pygame.init()
 
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
-LIGHT = (204, 255, 230)
-DARK = (51, 153, 51)
+LIGHT = (238, 238, 210)
+DARK = (118, 150, 86)
 MOVE = (50, 50, 50)
 CAPTURE = (120, 50, 50)
 
@@ -14,6 +14,9 @@ square_size = 60
 board_size = square_size * 8
 display_height = square_size * 8
 display_width = square_size * 8
+
+white_points = 0
+black_points = 0
 
 UP = False
 DOWN = True
@@ -78,6 +81,9 @@ clock = pygame.time.Clock()
 
 
 class Set:
+
+    """ Class for piece set. Can be black or white. """
+
     def __init__(self, color, is_player):
         self.is_player = is_player
         self.color = color
@@ -104,14 +110,19 @@ class Set:
 
 
 class Piece:
+
+    """ Class for chess pieces. """
+
     def __init__(self, color, piece_type, piece_name, is_player):
         self.is_player = is_player
         self.is_moved = False
         self.color = color
         self.piece_type = piece_type
         self.piece_name = piece_name
-        self.image_name = "assets/" + self.color + "/" + self.piece_type
+        self.image_name = "./assets/" + self.color + "/" + self.piece_type
         self.image = pygame.image.load(self.image_name + ".png")
+        self.image = pygame.transform.scale(
+            self.image, (square_size, square_size))
         self.location = self.start_location(self.piece_name)
 
     def start_location(self, piece_name):
@@ -120,7 +131,7 @@ class Piece:
         else:
             return second_person_locations[piece_name]
 
-    def possible_moves(self, first_location):
+    def possible_moves(self, first_location, is_moving, threatened_set):
         moves = []
         capture_moves = []
 
@@ -129,37 +140,41 @@ class Piece:
         # Moves for white pawn
         if self.color == "white":
             if self.piece_type == "pawn":
-                first_pawn_move = (first_location[0], first_location[1] - square_size)
+                first_pawn_move = (
+                    first_location[0], first_location[1] - square_size)
                 moves.append(first_pawn_move)
                 if not self.is_moved and not self.is_obstructed(first_pawn_move):
                     moves.append(
-                        (first_location[0], first_location[1] - square_size * 2)
+                        (first_location[0],
+                         first_location[1] - square_size * 2)
                     )
 
                 tmp_location = self.calculate_move(first_location, RIGHT, UP)
-                if self.is_capture(tmp_location):
+                if self.is_capture(tmp_location, self.set, threatened_set):
                     capture_moves.append(tmp_location)
 
                 tmp_location = self.calculate_move(first_location, LEFT, UP)
-                if self.is_capture(tmp_location):
+                if self.is_capture(tmp_location, self.set, threatened_set):
                     capture_moves.append(tmp_location)
 
         # Moves for black pawn
         else:
             if self.piece_type == "pawn":
-                first_pawn_move = (first_location[0], first_location[1] + square_size)
+                first_pawn_move = (
+                    first_location[0], first_location[1] + square_size)
                 moves.append(first_pawn_move)
                 if not self.is_moved and not self.is_obstructed(first_pawn_move):
                     moves.append(
-                        (first_location[0], first_location[1] + square_size * 2)
+                        (first_location[0],
+                         first_location[1] + square_size * 2)
                     )
 
                 tmp_location = self.calculate_move(first_location, RIGHT, DOWN)
-                if self.is_capture(tmp_location):
+                if self.is_capture(tmp_location, self.set, threatened_set):
                     capture_moves.append(tmp_location)
 
                 tmp_location = self.calculate_move(first_location, LEFT, DOWN)
-                if self.is_capture(tmp_location):
+                if self.is_capture(tmp_location, self.set, threatened_set):
                     capture_moves.append(tmp_location)
 
         # Moves for knights
@@ -169,62 +184,71 @@ class Piece:
                 for step in knight_move:
                     location = self.calculate_move(location, step[0], step[1])
                 moves, capture_moves, continue_pass = self.capture_move_or_break(
-                    location, moves, capture_moves
+                    location, moves, capture_moves, threatened_set
                 )
 
         # Moves for bishops
         elif self.piece_type == "bishop":
             moves, capture_moves = self.calculate_all_diagonals(
-                first_location, moves, capture_moves
+                first_location, moves, capture_moves, threatened_set
             )
 
         # Moves for rooks
         elif self.piece_type == "rook":
             moves, capture_moves = self.calculate_all_lines(
-                first_location, moves, capture_moves
+                first_location, moves, capture_moves, threatened_set
             )
 
         # Moves for queen
         elif self.piece_type == "queen":
             moves, capture_moves = self.calculate_all_diagonals(
-                first_location, moves, capture_moves
+                first_location, moves, capture_moves, threatened_set
             )
             moves, capture_moves = self.calculate_all_lines(
-                first_location, moves, capture_moves
+                first_location, moves, capture_moves, threatened_set
             )
 
         # Moves for king
         elif self.piece_type == "king":
+            # if not self.is_moved:
+            #     can_castle(self)
             for diagonal in diagonals:
                 temp_location = self.calculate_move(
                     first_location, diagonal[0], diagonal[1]
                 )
                 moves, capture_moves, continue_pass = self.capture_move_or_break(
-                    temp_location, moves, capture_moves
+                    temp_location, moves, capture_moves, threatened_set
                 )
             for line in lines:
-                temp_location = self.calculate_move(first_location, line[0], line[1])
+                temp_location = self.calculate_move(
+                    first_location, line[0], line[1])
                 moves, capture_moves, continue_pass = self.capture_move_or_break(
-                    temp_location, moves, capture_moves
+                    temp_location, moves, capture_moves, threatened_set
                 )
 
         # Eliminate illegal moves
         final_moves = []
         for move in moves:
             if not self.is_obstructed(move) and self.is_move_in_bounds(move):
-                final_moves.append(move)
+                if is_moving:
+                    if not self.will_there_be_check(move):
+                        final_moves.append(move)
+                else:
+                    final_moves.append(move)
 
         return final_moves, capture_moves
 
     def indicate_moves(self, psb_moves):
+        """ Indicate possible moves of piece on the board """
         for possible_move in psb_moves:
-            square = pygame.Rect(
-                possible_move[0] + square_size // 4,
-                possible_move[1] + square_size // 4,
-                square_size // 2,
-                square_size // 2,
-            )
-            pygame.draw.rect(display, MOVE, square)
+            if not self.will_there_be_check(possible_move):
+                square = pygame.Rect(
+                    possible_move[0] + square_size // 4,
+                    possible_move[1] + square_size // 4,
+                    square_size // 2,
+                    square_size // 2,
+                )
+                pygame.draw.rect(display, MOVE, square)
 
     def indicate_captures(self, psb_captures):
         for possible_capture in psb_captures:
@@ -234,18 +258,14 @@ class Piece:
             pygame.draw.rect(display, CAPTURE, square)
 
     def indicate_check(self, king_pos):
-        square = pygame.Rect(king_pos[0], king_pos[1], square_size, square_size,)
+        square = pygame.Rect(
+            king_pos[0], king_pos[1], square_size, square_size,)
         pygame.draw.rect(display, CAPTURE, square)
 
-    def is_capture(self, mv):
-        if self.color == "black":
-            for name, piece in white_pieces.pieces.items():
-                if mv == piece.location:
-                    return True
-        else:
-            for name, piece in black_pieces.pieces.items():
-                if mv == piece.location:
-                    return True
+    def is_capture(self, mv, threatening_set, threatened_set):
+        for name, piece in threatened_set.pieces.items():
+            if mv == piece.location:
+                return True
         return False
 
     def is_obstructed(self, mv):
@@ -256,16 +276,10 @@ class Piece:
         return False
 
     def will_there_be_check(self, mv):
-        if self.color == "white":
-            copy_pieces = copy_set(white_pieces)
-            copy_pieces.pieces[self.piece_name].location = mv
-            if is_there_a_check(copy_pieces, black_pieces):
-                return True
-        else:
-            copy_pieces = copy_set(black_pieces)
-            copy_pieces.pieces[self.piece_name].location = mv
-            if is_there_a_check(copy_pieces, white_pieces):
-                return True
+        copy_pieces = copy_set(self.set)
+        copy_pieces.pieces[self.piece_name].location = mv
+        if is_there_a_check(copy_pieces, self.opponent_set):
+            return True
         return False
 
     def is_move_in_bounds(self, mv):
@@ -273,11 +287,11 @@ class Piece:
             return False
         return True
 
-    def capture_move_or_break(self, mv, regular_mvs, capture_mvs):
+    def capture_move_or_break(self, mv, regular_mvs, capture_mvs, threatened_set):
         will_continue = True
         if not self.is_move_in_bounds(mv):
             will_continue = False
-        elif self.is_capture(mv):
+        elif self.is_capture(mv, self.set, threatened_set):
             capture_mvs.append(mv)
             will_continue = False
         elif not self.is_obstructed(mv):
@@ -304,33 +318,33 @@ class Piece:
 
         return (x, y)
 
-    def calculate_all_diagonals(self, start, mvs, captures):
+    def calculate_all_diagonals(self, start, mvs, captures, threatened_set):
         for diagonal in diagonals:
             mvs, captures = self.calc_moves_in_direction(
-                start, diagonal[0], diagonal[1], mvs, captures
+                start, diagonal[0], diagonal[1], mvs, captures, threatened_set
             )
         return mvs, captures
 
-    def calculate_all_lines(self, start, mvs, captures):
+    def calculate_all_lines(self, start, mvs, captures, threatened_set):
         for line in lines:
             mvs, captures = self.calc_moves_in_direction(
-                start, line[0], line[1], mvs, captures
+                start, line[0], line[1], mvs, captures, threatened_set
             )
         return mvs, captures
 
-    def calc_moves_in_direction(self, start, dir1, dir2, mvs, capture_mvs):
+    def calc_moves_in_direction(self, start, dir1, dir2, mvs, capture_mvs, threatened_set):
         temp_location = start
         continue_pass = True
         while continue_pass:
             temp_location = self.calculate_move(temp_location, dir1, dir2)
             mvs, capture_mvs, continue_pass = self.capture_move_or_break(
-                temp_location, mvs, capture_mvs
+                temp_location, mvs, capture_mvs, threatened_set
             )
         return mvs, capture_mvs
 
 
 def draw_grid():
-
+    """ Draw the game board """
     for j in range(0, board_size, square_size * 2):
         for k in range(square_size, board_size, square_size * 2):
             square = pygame.Rect(j, k, square_size, square_size)
@@ -357,34 +371,30 @@ def check_collisions(mouse_pos, pieces):
 
 
 def snap_piece(piece):
+    """ Snap piece to game board's grid """
     offset_x = piece.location[0] % square_size
     offset_y = piece.location[1] % square_size
     if offset_x > square_size // 2:
         offset_x -= square_size
     if offset_y > square_size // 2:
         offset_y -= square_size
-    snapped_location = (piece.location[0] - offset_x, piece.location[1] - offset_y)
+    snapped_location = (
+        piece.location[0] - offset_x, piece.location[1] - offset_y)
     piece.location = snapped_location
 
 
 def capture_at_location(capturing_piece, location):
-    if capturing_piece.color == "white":
-        for name, piece in black_pieces.pieces.items():
-            if piece.location == location:
-                piece_to_capture = name
-                black_pieces.pieces.pop(piece_to_capture)
-                break
-    else:
-        for name, piece in white_pieces.pieces.items():
-            if piece.location == location:
-                piece_to_capture = name
-                white_pieces.pieces.pop(piece_to_capture)
-                break
+    copy_of_pieces = capturing_piece.opponent_set.pieces.copy()
+    for name, piece in copy_of_pieces.items():
+        if piece.location == location:
+            piece_to_capture = name
+            capturing_piece.opponent_set.pieces.pop(piece_to_capture)
 
 
 def is_there_a_check(threatened_set, threatening_set):
     for name, attacking_piece in threatening_set.pieces.items():
-        mvs, capture_mvs = attacking_piece.possible_moves(attacking_piece.location)
+        mvs, capture_mvs = attacking_piece.possible_moves(
+            attacking_piece.location, False, threatened_set)
         if is_threatening_check(attacking_piece, capture_mvs, threatened_set):
             return True
     return False
@@ -404,6 +414,35 @@ def copy_set(piece_set):
     return set_copy
 
 
+def can_castle(pieces):
+    if pieces["king"].is_moved:
+        return False
+    elif pieces["rook0"].is_moved and pieces["rook1"].is_moved:
+        return False
+    elif not pieces["rook0"].is_moved:
+        pass
+
+
+def increase_point_total(captured_piece, points_to_increase):
+    if captured_piece.piece_type == "queen":
+        points_to_increase += 9
+    elif captured_piece.piece_type == "rook":
+        points_to_increase += 5
+    elif captured_piece.piece_type == "pawn":
+        points_to_increase += 1
+    else:
+        points_to_increase += 3
+    return points_to_increase
+
+
+def display_scores():
+    net_score = white_points - black_points
+    if net_score > 0:
+        pygame.display.set_caption(f"White {net_score} ahead")
+    else:
+        pygame.display.set_caption(f"Black {abs(net_score)} ahead")
+
+
 board = draw_grid()
 white_pieces = Set("white", True)
 black_pieces = Set("black", False)
@@ -414,6 +453,7 @@ other_player = black_pieces
 
 
 def change_player(player, second_player):
+    """ Change active player """
     if player is white_pieces:
         player = black_pieces
         second_player = white_pieces
@@ -423,13 +463,20 @@ def change_player(player, second_player):
     return player, second_player
 
 
+for name, piece in white_pieces.pieces.items():
+    piece.set = white_pieces
+    piece.opponent_set = black_pieces
+
+for name, piece in black_pieces.pieces.items():
+    piece.set = black_pieces
+    piece.opponent_set = white_pieces
+
 is_picked_piece = False
 picked_piece = None
 checkmate = False
-
 # Main game loop
-while not checkmate:
 
+while not checkmate:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             pygame.quit()
@@ -441,7 +488,7 @@ while not checkmate:
                 if picked_piece is not None:
                     pick_location = picked_piece.location
                     possible_moves_to_play, captures = picked_piece.possible_moves(
-                        pick_location
+                        pick_location, True, picked_piece.opponent_set
                     )
                     picked_piece.indicate_moves(possible_moves_to_play)
                     is_picked_piece = True
@@ -475,6 +522,7 @@ while not checkmate:
     # Get picked piece's location and draw possible moves
 
     if is_picked_piece and picked_piece is not None:
+
         mouse_pos = pygame.mouse.get_pos()
         picked_piece.location = (
             mouse_pos[0] - square_size // 2,
